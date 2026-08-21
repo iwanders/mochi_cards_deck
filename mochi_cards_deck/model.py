@@ -1,5 +1,5 @@
 
-from typing import Annotated, Any
+from typing import Annotated, Any, TypeVar
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, PlainSerializer
 
@@ -55,9 +55,10 @@ Roughly speaking, it hsould look like this:
 """
 
 
-def to_tilde_thing(actual_name: str) -> str:
-    # I think this is called a keyword?
-    return f"~:{actual_name}"
+def name_to_edn_tilde_thing(actual_name: str) -> str:
+    # Also change underscores to hyphens.
+    name_hyphen = actual_name.replace("_", "-")
+    return f"~:{name_hyphen}"
 
 class MyBaseModel(BaseModel):
     """Custom base model that automatically strips None values on dump."""
@@ -65,7 +66,7 @@ class MyBaseModel(BaseModel):
     model_config : ConfigDict = ConfigDict(
         populate_by_name=True,
         serialize_by_alias=True,
-        alias_generator=to_tilde_thing,
+        alias_generator=name_to_edn_tilde_thing,
     )
     
 
@@ -119,21 +120,54 @@ def edn_keyword_deserialize(value: str) -> str:
  
 EDNKeyword = Annotated[str, BeforeValidator(edn_keyword_deserialize), PlainSerializer(edn_keyword_serialize)]
 
+T = TypeVar('T')
+
+
+
+
+def edn_list_deserialize(v: Any) -> Any: 
+    #{ "~#list": [a,b]}
+    return v["~#list"]
+
+def edn_list_serialize(v: list[Any]) -> Any:
+    #{ "~#list": [a,b]}
+    return {"~#list":v}
+
+# 3. Define the parameterized Type Alias
+# Note: The type variable T must be placed in brackets after the alias name
+EDNList = Annotated[list[T], BeforeValidator(edn_list_deserialize), PlainSerializer(edn_list_serialize)]
+
+
+class Card(MyBaseModel):
+    content: str # Normal field. 
+    deck_id: EDNKeyword
+    # Optional
+    id: EDNKeyword | None = None
+    name: EDNKeyword | None = None
+    pos: EDNKeyword | None = None
+    
 
 class Deck(MyBaseModel):
     name: str # Normal field. 
+    # optional
     id: EDNKeyword | None = None
+    cards: EDNList[Card]| None = None
 
 
 def test_deck():
     t = Deck(name="our deck")
-    t.id = "abc"
+    deck_id = "abc"
+    t.cards = [Card(content="hello", deck_id=deck_id)]
+    t.id = deck_id
     v = t.model_dump(by_alias=True)
     print(v)
+    #assert 1 == 2
     assert "~:name" in v
     assert "~:id" in v
     assert v["~:name"] == "our deck"
-    assert v["~:id"] == "~:abc" 
+    assert v["~:id"] == "~:abc"
+    # Validate deck
+    
     r = Deck.model_validate(v)
     print(r)
     assert r.name == "our deck"
