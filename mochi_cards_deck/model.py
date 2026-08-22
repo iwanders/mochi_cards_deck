@@ -124,7 +124,6 @@ def edn_keyword_serialize(value: str) -> str:
 
 def edn_keyword_deserialize(value: str) -> str:
     # SUPER GROSS... but this gets called twice for validation with nested structs.
-    print(f"deserializing {value}")
     if value.startswith("~:"):
         return value[2:]
     else:
@@ -177,6 +176,25 @@ class Review(MyBaseModel):
 EDNListReview = Annotated[list[Review], PlainValidator(make_list_deserializer(Review)), PlainSerializer(edn_list_serialize)]
 
 
+def field_value_dict_deserializer(complex_field_values_dict: Any) -> Any:  # pyright: ignore[reportAny, reportExplicitAny]
+    if len(complex_field_values_dict) and not "~:value" in  list(complex_field_values_dict.values())[0]:
+        return complex_field_values_dict
+    s = {}
+    for k, v in complex_field_values_dict.items():
+        s[k[2:]] = v["~:value"]
+    return s
+
+def field_value_dict_serializer(simple_dict: dict[str, str] ) -> Any:  # pyright: ignore[reportAny, reportExplicitAny]
+    res = {}
+    for k, v in simple_dict.items():
+        k_keyword = f"~:{k}"
+        res[k_keyword] = {"~:id":k_keyword, "~:value": v}
+    return res
+    
+
+EDNFieldValueDict = Annotated[dict[str, str], PlainValidator(field_value_dict_deserializer), PlainSerializer(field_value_dict_serializer)]
+
+
 class Card(MyBaseModel):
     content: str # Normal field. 
     deck_id: EDNKeyword
@@ -185,6 +203,7 @@ class Card(MyBaseModel):
     name: EDNKeyword | None = None
     pos: EDNKeyword | None = None
     reviews: EDNListReview| None = None
+    fields: EDNFieldValueDict | None = None
     
 
     
@@ -203,7 +222,7 @@ class Deck(MyBaseModel):
 def test_deck():
     t = Deck(name="our deck")
     deck_id = "abc"
-    t.cards = [Card(content="hello", deck_id=deck_id)]
+    t.cards = [Card(content="hello", deck_id=deck_id, fields={"name": "hello"})]
     t.id = deck_id
     v = t.model_dump()
     print(v)
@@ -212,7 +231,14 @@ def test_deck():
         '~:id': '~:abc',
         '~:cards': {
             '~#list': [
-                {'~:content': 'hello', '~:deck-id': '~:abc'}
+                {'~:content': 'hello', '~:deck-id': '~:abc', 
+                                     '~:fields': {
+                                         '~:name': {
+                                             '~:id': '~:name',
+                                             '~:value': 'hello',
+                                         },
+                                     },
+}
             ]
         }} == v 
     # Validate deck
