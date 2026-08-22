@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Annotated, Any, TypeVar
 
 from pydantic import BaseModel, PlainValidator, ConfigDict, PlainSerializer, Field as PydanticField 
+import datetime
 
 """
 Roughly speaking, it hsould look like this:
@@ -61,6 +62,8 @@ def name_to_edn_tilde_thing(actual_name: str) -> str:
     name_hyphen = actual_name
     if name_hyphen.endswith("_"):
         name_hyphen = name_hyphen[0:-1]
+    if name_hyphen.endswith("_q"):
+        name_hyphen = name_hyphen[0:-2] + "?"
     name_hyphen = name_hyphen.replace("_", "-")
     return f"~:{name_hyphen}"
 
@@ -171,8 +174,34 @@ def test_field():
     print(r) 
     assert r == t
 
+def edn_date_serialize(value:  datetime.datetime) -> str:
+    nanoseconds = int(value.timestamp() * 1e3) 
+    return f"~t{nanoseconds}"
+
+def edn_date_deserialize(value: str | datetime.datetime) -> datetime.datetime:
+    if isinstance(value, datetime.datetime):
+        return value
+    return datetime.datetime.fromtimestamp(int(value[2:]) / 1000, tz=datetime.timezone.utc)
+    
+EDNDate = Annotated[datetime.datetime, PlainValidator(edn_date_deserialize), PlainSerializer(edn_date_serialize)]
+ 
 class Review(MyBaseModel):
-    pass
+    due: EDNDate
+    date: EDNDate
+    interval: int
+    remembered_q : bool
+    duration: int | None = None
+
+def test_review():
+    now = datetime.datetime(year=2026, month=8, day=22, hour=15, minute=22, second=3, tzinfo=datetime.timezone.utc)
+    t = Review(date=now, due=now, interval=5, remembered_q=False, duration=3)
+    v = t.model_dump( )
+    print(v)
+    assert {'~:due': '~t1787412123000', '~:date': '~t1787412123000', '~:interval': 5, '~:remembered?': False, '~:duration': 3} == v  
+    r = Review.model_validate(v)
+    print(r)
+    assert r == t
+
 EDNListReview = Annotated[list[Review], PlainValidator(make_list_deserializer(Review)), PlainSerializer(edn_list_serialize)]
 
 
@@ -278,6 +307,9 @@ class Template(MyBaseModel):
     name: str # Normal field.  
     id: EDNKeyword | None = None
     fields: EDNTemplateFields | None = None
+    # The actual content of the card, mustache-enabled
+    content: str | None = None
+    pos: str | None = None
     
 def test_template():
     t = Template(name="our deck", fields=[Field(id="name", name="thing", type=FieldType.Text)])
