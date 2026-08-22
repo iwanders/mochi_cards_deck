@@ -171,7 +171,7 @@ class Field(MyBaseModel):
     name: str
     # optional
     type: FieldType | None = None 
-    pos: EDNKeyword | None = None
+    pos: str | None = None
     # options... some map of keyword to values, don't know how this looks yet.
     lang: str | None = None
     from_: str | None = None
@@ -182,7 +182,7 @@ def test_field():
     t = Field(name="superfield", id="thing", from_="this", type=FieldType.Image)
     v = t.model_dump( )
     print(v)
-    assert {'~:id': '~:thing', '~:name': 'superfield', '~:from': 'this', "~:type":":image"} == v  
+    assert {'~:id': '~:thing', '~:name': 'superfield', '~:from': 'this', "~:type":"~:image"} == v  
     r = Field.model_validate(v)
     print(r) 
     assert r == t
@@ -266,8 +266,8 @@ class Card(MyBaseModel):
     deck_id: EDNKeyword
     # Optional
     id: EDNKeyword | None = None
-    name: EDNKeyword | None = None
-    pos: EDNKeyword | None = None
+    name: str | None = None
+    pos: str | None = None
     reviews: list[Review]| None = None
     # Fields matches template field.
     fields: EDNFieldValueDict | None = None
@@ -350,7 +350,7 @@ def test_template():
             {'~:name': {
                     '~:id': '~:name',
                     '~:name': 'thing',
-                    '~:type': ':text'}}} == v 
+                    '~:type': '~:text'}}} == v 
     # Validate deck
     
     r = Template.model_validate(v)

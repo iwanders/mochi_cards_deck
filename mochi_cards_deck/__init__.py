@@ -1,13 +1,17 @@
 import zipfile
 from pathlib import Path
+import io
 
 from .model import TopLevelMap
+import json
 
 
+from dataclasses import dataclass
+
+@dataclass
 class MochiAttachment:
-    def __init__(self, filename: str, content: bytes):
-        self._filename = filename
-        self._content = content
+    filename: str
+    content: bytes
 
 class MochiFile:
     DATA_JSON: str = "data.json"
@@ -19,6 +23,26 @@ class MochiFile:
         # Could do a content addressed storage here to get free dedup and avoiding duplicate files...
         attachment = MochiAttachment(filename=filename, content=content)
         self._files[filename] = attachment
+
+    def to_bytes(self) -> bytes: 
+        buffer = io.BytesIO()
+        data_json_contents = self._root.model_dump()
+        json_str = json.dumps(data_json_contents, indent=1, ensure_ascii=False)
+        
+        
+        with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr("data.json", json_str)
+            for k, v in self._files.items():
+                zf.writestr(v.filename, v.content)
+        return buffer.getvalue()
+
+    def write_file(self, path: Path):
+        # Convert first, then write, such that if conversion fails we don't end up with a 0 sized file.
+        content = self.to_bytes()
+        with path.open("wb") as f:
+            f.write(content)
+         
+        
 
     @staticmethod
     def load_file(path: Path) -> "MochiFile":

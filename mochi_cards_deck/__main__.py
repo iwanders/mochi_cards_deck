@@ -7,7 +7,7 @@ from pathlib import Path
 
 def run_load_test(args):
     f = MochiFile.load_file(args.file)
-    
+    f.write_file(Path("/tmp/foo.mochi"))
     pass
 
 if __name__ == "__main__":
