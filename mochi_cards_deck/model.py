@@ -137,7 +137,7 @@ EDNKeyword = Annotated[str, PlainValidator(edn_keyword_deserialize), PlainSerial
 
 def make_list_deserializer(our_type: Any) -> Any:  # pyright: ignore[reportAny, reportExplicitAny]
     def edn_list_deserialize(v: Any) -> Any:   # pyright: ignore[reportAny, reportExplicitAny]
-        #{ "~#list": [a,b]} 
+        print(v)
         return [our_type.model_validate(x) for x in v["~#list"]] # pyright: ignore[reportAny]
     return edn_list_deserialize
 
@@ -147,11 +147,24 @@ def edn_list_serialize(v: list[Any] ) -> Any:  # pyright: ignore[reportAny, repo
 
 
 class FieldType(str, Enum):
-    Text = ":text"
-    Boolean = ":boolean"
-    Speech = ":speech"
-    Image = ":image"
-    Translate = ":translate"
+    Text = "~:text"
+    Boolean = "~:boolean"
+    Speech = "~:speech"
+    Image = "~:image"
+    Translate = "~:translate"
+    Draw = "~:draw"
+    # And the pro types...
+    Transcription = "~:transcription"
+    Dictionary = "~:dictionary"
+    Furigana = "~:furigana"
+    Pinyin = "~:pinyin"
+
+   
+
+ 
+
+  
+
 
 class Field(MyBaseModel):
     id: EDNKeyword
@@ -188,7 +201,8 @@ EDNDate = Annotated[datetime.datetime, PlainValidator(edn_date_deserialize), Pla
 class Review(MyBaseModel):
     due: EDNDate
     date: EDNDate
-    interval: int
+    # spec says int, data says float, spec says required, data says optional.
+    interval: float | None = None
     remembered_q : bool
     duration: int | None = None
 
@@ -254,7 +268,7 @@ class Card(MyBaseModel):
     id: EDNKeyword | None = None
     name: EDNKeyword | None = None
     pos: EDNKeyword | None = None
-    reviews: EDNListReview| None = None
+    reviews: list[Review]| None = None
     # Fields matches template field.
     fields: EDNFieldValueDict | None = None
     attachments: dict[str, CardAttachment] | None = None
@@ -276,7 +290,9 @@ class Deck(MyBaseModel):
 def test_deck():
     t = Deck(name="our deck")
     deck_id = "abc"
-    t.cards = [Card(content="hello", deck_id=deck_id, fields={"name": "hello"})]
+    now = datetime.datetime(year=2026, month=8, day=22, hour=15, minute=22, second=3, tzinfo=datetime.timezone.utc)
+    review = Review(date=now, due=now, interval=5, remembered_q=False, duration=3)
+    t.cards = [Card(content="hello", deck_id=deck_id, fields={"name": "hello"}, reviews=[review])]
     t.id = deck_id
     v = t.model_dump()
     print(v)
@@ -286,6 +302,16 @@ def test_deck():
         '~:cards': {
             '~#list': [
                 {'~:content': 'hello', '~:deck-id': '~:abc', 
+                                     '~:reviews': [
+                                         {
+                                             '~:due': '~t1787412123000',
+                                             '~:date': '~t1787412123000',
+                                             '~:interval': 5,
+                                             '~:remembered?': False,
+                                             '~:duration': 3,
+                                         },
+                                     ],
+
                                      '~:fields': {
                                          '~:name': {
                                              '~:id': '~:name',
@@ -335,10 +361,15 @@ def test_template():
 
 
 
+# 3. Define the parameterized Type Alias
+# Note: The type variable T must be placed in brackets after the alias name
+EDNListTemplate = Annotated[list[Template], PlainValidator(make_list_deserializer(Template)), PlainSerializer(edn_list_serialize)]
+
+
 class TopLevelMap(MyBaseModel):
     version: int = 2
     decks: None | list[Deck] = None
-    templates: None | list[Template] = None
+    templates: None | EDNListTemplate  = None
 
 
 def test_toplevel():
