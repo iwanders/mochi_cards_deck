@@ -1,7 +1,8 @@
 
+from enum import Enum
 from typing import Annotated, Any, TypeVar
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, PlainSerializer
+from pydantic import BaseModel, PlainValidator, ConfigDict, PlainSerializer, Field as PydanticField 
 
 """
 Roughly speaking, it hsould look like this:
@@ -57,7 +58,10 @@ Roughly speaking, it hsould look like this:
 
 def name_to_edn_tilde_thing(actual_name: str) -> str:
     # Also change underscores to hyphens.
-    name_hyphen = actual_name.replace("_", "-")
+    name_hyphen = actual_name
+    if name_hyphen.endswith("_"):
+        name_hyphen = name_hyphen[0:-1]
+    name_hyphen = name_hyphen.replace("_", "-")
     return f"~:{name_hyphen}"
 
 class MyBaseModel(BaseModel):
@@ -113,30 +117,53 @@ class MyBaseModel(BaseModel):
 
 
 def edn_keyword_serialize(value: str) -> str:
+    print(f"serializing {value}")
     return f"~:{value}"
 
 def edn_keyword_deserialize(value: str) -> str:
-    return value[2:]
+    # SUPER GROSS... but this gets called twice for validation with nested structs.
+    print(f"deserializing {value}")
+    if value.startswith("~:"):
+        return value[2:]
+    else:
+        return value
  
-EDNKeyword = Annotated[str, BeforeValidator(edn_keyword_deserialize), PlainSerializer(edn_keyword_serialize)]
-
-T = TypeVar('T')
-
+EDNKeyword = Annotated[str, PlainValidator(edn_keyword_deserialize), PlainSerializer(edn_keyword_serialize)]
+ 
 
 
 
-def edn_list_deserialize(v: Any) -> Any: 
-    #{ "~#list": [a,b]}
-    return v["~#list"]
+class FieldType(str, Enum):
+    Text = ":text"
+    Boolean = ":boolean"
+    Speech = ":speech"
+    Image = ":image"
+    Translate = ":translate"
 
-def edn_list_serialize(v: list[Any]) -> Any:
-    #{ "~#list": [a,b]}
-    return {"~#list":v}
+class Field(MyBaseModel):
+    id: EDNKeyword
+    name: str
+    # optional
+    type: FieldType | None = None 
+    pos: EDNKeyword | None = None
+    # options... some map of keyword to values, don't know how this looks yet.
+    lang: str | None = None
+    from_: str | None = None
+    to: str | None = None
+    boolean_default: bool | None = None
+    
+def test_field():
+    t = Field(name="superfield", id="thing", from_="this")
+    v = t.model_dump(by_alias=True)
+    print(v)
+    assert {'~:id': '~:thing', '~:name': 'superfield', '~:from': 'this'} == v  
+    r = Field.model_validate(v)
+    print(r) 
+    assert r == t
 
-# 3. Define the parameterized Type Alias
-# Note: The type variable T must be placed in brackets after the alias name
-EDNList = Annotated[list[T], BeforeValidator(edn_list_deserialize), PlainSerializer(edn_list_serialize)]
-
+    
+class Review(MyBaseModel):
+    pass
 
 class Card(MyBaseModel):
     content: str # Normal field. 
@@ -145,13 +172,27 @@ class Card(MyBaseModel):
     id: EDNKeyword | None = None
     name: EDNKeyword | None = None
     pos: EDNKeyword | None = None
+    #reviews: EDNList[Review]| None = None
     
+
+def edn_list_deserialize(v: Any, our_type: Card) -> Any:   # pyright: ignore[reportAny, reportExplicitAny]
+    #{ "~#list": [a,b]} 
+    return [our_type.model_validate(x) for x in v["~#list"]] # pyright: ignore[reportAny]
+
+def edn_list_serialize(v: list[Any] ) -> Any:  # pyright: ignore[reportAny, reportExplicitAny]
+    return {"~#list":v}
+    
+
+# 3. Define the parameterized Type Alias
+# Note: The type variable T must be placed in brackets after the alias name
+EDNListCard = Annotated[list[Card], PlainValidator(lambda z: edn_list_deserialize(z, Card)), PlainSerializer(edn_list_serialize)]
+
 
 class Deck(MyBaseModel):
     name: str # Normal field. 
     # optional
     id: EDNKeyword | None = None
-    cards: EDNList[Card]| None = None
+    cards: EDNListCard | None = None
 
 
 def test_deck():
@@ -161,17 +202,21 @@ def test_deck():
     t.id = deck_id
     v = t.model_dump(by_alias=True)
     print(v)
-    #assert 1 == 2
-    assert "~:name" in v
-    assert "~:id" in v
-    assert v["~:name"] == "our deck"
-    assert v["~:id"] == "~:abc"
+    assert {
+        '~:name': 'our deck',
+        '~:id': '~:abc',
+        '~:cards': {
+            '~#list': [
+                {'~:content': 'hello', '~:deck-id': '~:abc'}
+            ]
+        }} == v 
     # Validate deck
     
     r = Deck.model_validate(v)
     print(r)
     assert r.name == "our deck"
     assert r.id == "abc"
+    assert r == t
 
 class Template(MyBaseModel):
     pass
