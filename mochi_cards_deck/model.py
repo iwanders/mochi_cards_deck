@@ -195,6 +195,29 @@ def field_value_dict_serializer(simple_dict: dict[str, str] ) -> Any:  # pyright
 EDNFieldValueDict = Annotated[dict[str, str], PlainValidator(field_value_dict_deserializer), PlainSerializer(field_value_dict_serializer)]
 
 
+
+def field_template_dict_deserializer(complex_field_values_dict: Any) -> Any:  # pyright: ignore[reportAny, reportExplicitAny]
+    if isinstance(complex_field_values_dict, list):
+        return complex_field_values_dict
+    s = []
+    for k, v in complex_field_values_dict.items():
+        s.append(Field.model_validate(v))
+    return s
+
+def field_template_dict_serializer(simple_list: list[Field] ) -> Any:  # pyright: ignore[reportAny, reportExplicitAny]
+    res = {}
+    for v in simple_list:
+        k_keyword = f"~:{v.id}"
+        res[k_keyword] = v.model_dump()
+    return res
+
+# THis is actually a map in the thing... but because it is keyed by the id, it effectively behaves like a list.
+EDNTemplateFields = Annotated[list[Field], PlainValidator(field_template_dict_deserializer), PlainSerializer(field_template_dict_serializer)]
+
+class CardAttachment(MyBaseModel):
+    size: int
+    type: str = ""
+
 class Card(MyBaseModel):
     content: str # Normal field. 
     deck_id: EDNKeyword
@@ -203,7 +226,9 @@ class Card(MyBaseModel):
     name: EDNKeyword | None = None
     pos: EDNKeyword | None = None
     reviews: EDNListReview| None = None
+    # Fields matches template field.
     fields: EDNFieldValueDict | None = None
+    attachments: dict[str, CardAttachment] | None = None
     
 
     
@@ -250,7 +275,32 @@ def test_deck():
     assert r == t
 
 class Template(MyBaseModel):
-    pass
+    name: str # Normal field.  
+    id: EDNKeyword | None = None
+    fields: EDNTemplateFields | None = None
+    
+def test_template():
+    t = Template(name="our deck", fields=[Field(id="name", name="thing", type=FieldType.Text)])
+    template_id = "abc"
+    t.id = template_id
+    v = t.model_dump()
+    print(v)
+    assert {
+        '~:name': 'our deck',
+        '~:id': '~:abc',
+        '~:fields': 
+            {'~:name': {
+                    '~:id': '~:name',
+                    '~:name': 'thing',
+                    '~:type': ':text'}}} == v 
+    # Validate deck
+    
+    r = Template.model_validate(v)
+    print(r)
+    assert r.name == "our deck"
+    assert r.id == "abc"
+    assert r == t
+
 
 
 class TopLevelMap(MyBaseModel):
