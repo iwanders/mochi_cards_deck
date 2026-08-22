@@ -78,11 +78,13 @@ class MyBaseModel(BaseModel):
     def model_dump(self, **kwargs: Any) -> dict[str, Any]:
         # Force exclude_none to True unless explicitly overridden
         kwargs.setdefault("exclude_none", True)
+        kwargs.setdefault("mode", "json")
         return super().model_dump(**kwargs)
 
     def model_dump_json(self, **kwargs: Any) -> str:
         # Force exclude_none to True unless explicitly overridden
         kwargs.setdefault("exclude_none", True)
+        kwargs.setdefault("mode", "json")
         return super().model_dump_json(**kwargs)
 
 
@@ -131,6 +133,15 @@ def edn_keyword_deserialize(value: str) -> str:
 EDNKeyword = Annotated[str, PlainValidator(edn_keyword_deserialize), PlainSerializer(edn_keyword_serialize)]
  
 
+def make_list_deserializer(our_type: Any) -> Any:  # pyright: ignore[reportAny, reportExplicitAny]
+    def edn_list_deserialize(v: Any) -> Any:   # pyright: ignore[reportAny, reportExplicitAny]
+        #{ "~#list": [a,b]} 
+        return [our_type.model_validate(x) for x in v["~#list"]] # pyright: ignore[reportAny]
+    return edn_list_deserialize
+
+def edn_list_serialize(v: list[Any] ) -> Any:  # pyright: ignore[reportAny, reportExplicitAny]
+    return {"~#list":v}
+    
 
 
 class FieldType(str, Enum):
@@ -153,17 +164,18 @@ class Field(MyBaseModel):
     boolean_default: bool | None = None
     
 def test_field():
-    t = Field(name="superfield", id="thing", from_="this")
-    v = t.model_dump(by_alias=True)
+    t = Field(name="superfield", id="thing", from_="this", type=FieldType.Image)
+    v = t.model_dump( )
     print(v)
-    assert {'~:id': '~:thing', '~:name': 'superfield', '~:from': 'this'} == v  
+    assert {'~:id': '~:thing', '~:name': 'superfield', '~:from': 'this', "~:type":":image"} == v  
     r = Field.model_validate(v)
     print(r) 
     assert r == t
 
-    
 class Review(MyBaseModel):
     pass
+EDNListReview = Annotated[list[Review], PlainValidator(make_list_deserializer(Review)), PlainSerializer(edn_list_serialize)]
+
 
 class Card(MyBaseModel):
     content: str # Normal field. 
@@ -172,21 +184,14 @@ class Card(MyBaseModel):
     id: EDNKeyword | None = None
     name: EDNKeyword | None = None
     pos: EDNKeyword | None = None
-    #reviews: EDNList[Review]| None = None
+    reviews: EDNListReview| None = None
     
 
-def edn_list_deserialize(v: Any, our_type: Card) -> Any:   # pyright: ignore[reportAny, reportExplicitAny]
-    #{ "~#list": [a,b]} 
-    return [our_type.model_validate(x) for x in v["~#list"]] # pyright: ignore[reportAny]
-
-def edn_list_serialize(v: list[Any] ) -> Any:  # pyright: ignore[reportAny, reportExplicitAny]
-    return {"~#list":v}
     
 
 # 3. Define the parameterized Type Alias
 # Note: The type variable T must be placed in brackets after the alias name
-EDNListCard = Annotated[list[Card], PlainValidator(lambda z: edn_list_deserialize(z, Card)), PlainSerializer(edn_list_serialize)]
-
+EDNListCard = Annotated[list[Card], PlainValidator(make_list_deserializer(Card)), PlainSerializer(edn_list_serialize)]
 
 class Deck(MyBaseModel):
     name: str # Normal field. 
@@ -200,7 +205,7 @@ def test_deck():
     deck_id = "abc"
     t.cards = [Card(content="hello", deck_id=deck_id)]
     t.id = deck_id
-    v = t.model_dump(by_alias=True)
+    v = t.model_dump()
     print(v)
     assert {
         '~:name': 'our deck',
@@ -230,7 +235,7 @@ class TopLevelMap(MyBaseModel):
 
 def test_toplevel():
     t = TopLevelMap()
-    v = t.model_dump(by_alias=True)
+    v = t.model_dump()
     assert "~:version" in v
     assert v["~:version"] == 2 
     assert len(v.keys()) == 1
