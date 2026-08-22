@@ -122,7 +122,7 @@ class MyBaseModel(BaseModel):
 
 
 def edn_keyword_serialize(value: str) -> str:
-    print(f"serializing {value}")
+    #print(f"serializing {value}")
     return f"~:{value}"
 
 def edn_keyword_deserialize(value: str) -> str:
@@ -137,7 +137,7 @@ EDNKeyword = Annotated[str, PlainValidator(edn_keyword_deserialize), PlainSerial
 
 def make_list_deserializer(our_type: Any) -> Any:  # pyright: ignore[reportAny, reportExplicitAny]
     def edn_list_deserialize(v: Any) -> Any:   # pyright: ignore[reportAny, reportExplicitAny]
-        print(v)
+        #print(v)
         return [our_type.model_validate(x) for x in v["~#list"]] # pyright: ignore[reportAny]
     return edn_list_deserialize
 
