@@ -1,15 +1,26 @@
-from uuid import uuid4
-import zipfile
-from pathlib import Path
 import io
-
-from .model import Card, EDNFieldValueDict, EDNListCard, Template, TopLevelMap, FieldType, Review, Field, Deck
 import json
-
-
+import zipfile
 from dataclasses import dataclass
+from pathlib import Path
+from uuid import uuid4
 
-def _safe_id() -> str:
+from .model import (
+    Card,
+    Deck,
+    EDNFieldValueDict,
+    EDNListCard,
+    Field,
+    FieldType,
+    Review,
+    Template,
+    TopLevelMap,
+)
+
+__all__ = ["FieldType", "MochiAttachment", "MochiCard", "MochiDeckRef", "MochiField", "MochiFile", "MochiTemplateRef"]
+
+
+def mochi_id() -> str:
     return str(uuid4()).replace("-", "")
 @dataclass
 class MochiAttachment:
@@ -24,7 +35,7 @@ class MochiField:
     
     def __post_init__(self):
         if self.id is None:
-            self.id = _safe_id()
+            self.id = mochi_id()
             
     def __hash__(self):
         return hash(self.id)
@@ -69,7 +80,7 @@ class MochiFile:
 
     def add_template(self, name: str, content: str, fields:list[MochiField] = [], template_id: str | None = None) -> MochiTemplateRef:
         if template_id is None:
-            template_id =  _safe_id()
+            template_id =  mochi_id()
         if self._root.templates is None:
             self._root.templates = []
         fields_typed: list[Field] = []
@@ -91,7 +102,7 @@ class MochiFile:
         else:
             self._root.decks = []
         if deck_id is None:
-            deck_id =  _safe_id()
+            deck_id =  mochi_id()
         self._root.decks.append(Deck(name=name, id=deck_id, cards=cards))
         return MochiDeckRef(id=deck_id)
 
@@ -108,7 +119,7 @@ class MochiFile:
 
     def add_card(self, deck: MochiDeckRef, fields: dict[MochiField, str], name: str | None = None, card_id: None | str  = None, content: str = "", template: MochiTemplateRef | None = None):
         if card_id is None:
-            card_id =  _safe_id()
+            card_id =  mochi_id()
         deck_mod = self._get_deck_by_ref(deck)
         
         # CHeck if card id already exists, if so raise.
@@ -123,6 +134,8 @@ class MochiFile:
 
         card_fields: EDNFieldValueDict = {}
         for field, value in fields.items():
+            if field.id is None:
+                raise KeyError(f"field id is none for {field}, this must not be the case")
             card_fields[field.id] = value
 
         template_id = None

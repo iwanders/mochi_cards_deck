@@ -3,11 +3,10 @@
 import argparse
 import logging
 from pathlib import Path
+from textwrap import dedent
 
 import mochi_cards_deck
-
-from . import MochiFile
-from textwrap import dedent
+from mochi_cards_deck import FieldType, MochiFile
 
 
 def run_load_test(args):
@@ -17,10 +16,9 @@ def run_load_test(args):
 
 def run_create_deck(args):
     f = MochiFile()
-    decimal_field = mochi_cards_deck.MochiField(name="decimal", field_type=mochi_cards_deck.FieldType.Text)
-    hex_field =  mochi_cards_deck.MochiField(name="hexadecimal", field_type=mochi_cards_deck.FieldType.Text)
-    print(hex_field)
-    
+    decimal_field = mochi_cards_deck.MochiField(name="decimal", field_type=FieldType.Text)
+    hex_field =  mochi_cards_deck.MochiField(name="hexadecimal", field_type=FieldType.Text)
+
     dec_to_hex_template = f.add_template(name="dec to hex", content=dedent("""
     << decimal >>
     ---
@@ -28,12 +26,19 @@ def run_create_deck(args):
     """), fields=[decimal_field, hex_field])
 
 
+    hex_to_dec_template = f.add_template(name="dec to hex", content=dedent("""
+    << hexadecimal >>
+    ---
+    << decimal >>
+    """), fields=[decimal_field, hex_field])
     deck = f.add_deck("lower 16")
     f.add_card(deck, fields={hex_field: "0x01", decimal_field:"1"}, template=dec_to_hex_template)
+    f.add_card(deck, fields={hex_field: "0x01", decimal_field:"1"}, template=hex_to_dec_template)
+    f.add_card(deck, fields={hex_field: "0x0F", decimal_field:"15"}, template=dec_to_hex_template)
+    f.add_card(deck, fields={hex_field: "0x0F", decimal_field:"15"}, template=hex_to_dec_template)
 
     
     f.write_file(args.output)
-    pass
 
 if __name__ == "__main__":
     # Create a parser with some subcommands
