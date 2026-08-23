@@ -272,7 +272,8 @@ class Card(MyBaseModel):
     # Fields matches template field.
     fields: EDNFieldValueDict | None = None
     attachments: dict[str, CardAttachment] | None = None
-    
+    # This template id isn't in the docs, but you need it if you use the fields.
+    template_id: EDNKeyword | None = None
 
     
 

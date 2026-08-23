@@ -7,6 +7,7 @@ from pathlib import Path
 import mochi_cards_deck
 
 from . import MochiFile
+from textwrap import dedent
 
 
 def run_load_test(args):
@@ -18,13 +19,17 @@ def run_create_deck(args):
     f = MochiFile()
     decimal_field = mochi_cards_deck.MochiField(name="decimal", field_type=mochi_cards_deck.FieldType.Text)
     hex_field =  mochi_cards_deck.MochiField(name="hexadecimal", field_type=mochi_cards_deck.FieldType.Text)
+    print(hex_field)
     
-    f.add_template(name="dec to hex", content="""
-    <<<decimal>>>
+    dec_to_hex_template = f.add_template(name="dec to hex", content=dedent("""
+    << decimal >>
     ---
-    <<<hexadecimal>>>
-    """, fields=[decimal_field, hex_field])
+    << hexadecimal >>
+    """), fields=[decimal_field, hex_field])
 
+
+    deck = f.add_deck("lower 16")
+    f.add_card(deck, fields={hex_field: "0x01", decimal_field:"1"}, template=dec_to_hex_template)
 
     
     f.write_file(args.output)
