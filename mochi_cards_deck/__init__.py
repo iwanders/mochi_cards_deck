@@ -1,5 +1,6 @@
 import io
 import json
+import random
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -117,7 +118,7 @@ class MochiFile:
         
 
 
-    def add_card(self, deck: MochiDeckRef, fields: dict[MochiField, str], name: str | None = None, card_id: None | str  = None, content: str = "", template: MochiTemplateRef | None = None):
+    def add_card(self, deck: MochiDeckRef, fields: dict[MochiField, str], name: str | None = None, card_id: None | str  = None, content: str = "", template: MochiTemplateRef | None = None, pos: str | None = None):
         if card_id is None:
             card_id =  mochi_id()
         deck_mod = self._get_deck_by_ref(deck)
@@ -142,8 +143,14 @@ class MochiFile:
         if template is not None:
             template_id = template.id
 
-        deck_mod.cards.append(Card(fields=card_fields, id=card_id, name=name, content=content, deck_id = deck.id, template_id=template_id))
+        deck_mod.cards.append(Card(fields=card_fields, id=card_id, name=name, content=content, deck_id = deck.id, template_id=template_id, pos=pos))
+
+    def shuffle_deck(self, deck: MochiDeckRef, seed:  int |  str | bytes | None = None):
+        rng = random.Random(seed)
+        deck_mod = self._get_deck_by_ref(deck)
+        rng.shuffle(deck_mod.cards)
         
+
     def to_bytes(self) -> bytes: 
         buffer = io.BytesIO()
         data_json_contents = self._root.model_dump()
