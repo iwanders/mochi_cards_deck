@@ -1,13 +1,33 @@
 #!/usr/bin/env python3
 
-from . import MochiFile
 import argparse
 import logging
 from pathlib import Path
 
+import mochi_cards_deck
+
+from . import MochiFile
+
+
 def run_load_test(args):
     f = MochiFile.load_file(args.file)
     f.write_file(Path("/tmp/foo.mochi"))
+    pass
+
+def run_create_deck(args):
+    f = MochiFile()
+    decimal_field = mochi_cards_deck.MochiField(name="decimal", field_type=mochi_cards_deck.FieldType.Text)
+    hex_field =  mochi_cards_deck.MochiField(name="hexadecimal", field_type=mochi_cards_deck.FieldType.Text)
+    
+    f.add_template(name="dec to hex", content="""
+    <<<decimal>>>
+    ---
+    <<<hexadecimal>>>
+    """, fields=[decimal_field, hex_field])
+
+
+    
+    f.write_file(args.output)
     pass
 
 if __name__ == "__main__":
@@ -24,15 +44,14 @@ if __name__ == "__main__":
     subparsers = parser.add_subparsers(dest="command", help="sub-command help")
     
     
-    parser_run_load_test = subparsers.add_parser("load", help="Test loading a deck.")
-    parser_run_load_test.add_argument("--allow-download", dest="local_files_only", default=True, action="store_false")
-
-    parser_run_load_test.add_argument("file",
-         type=Path,
-         help="Paths to operate on, retrieve https://huggingface.co/datasets/bezzam/audio_samples/resolve/main/librispeech_mr_quilter.wav as an example",
-    )
-     
+    parser_run_load_test = subparsers.add_parser("load", help="Test loading a deck.") 
+    parser_run_load_test.add_argument("file", type=Path, help="Path to the file to load.", )
     parser_run_load_test.set_defaults(func=run_load_test)
+     
+    
+    parser_run_create_deck = subparsers.add_parser("create", help="Test creating a deck")
+    parser_run_create_deck.add_argument("output", type=Path, help="Path to the output path.")
+    parser_run_create_deck.set_defaults(func=run_create_deck)
      
     args = parser.parse_args()
 

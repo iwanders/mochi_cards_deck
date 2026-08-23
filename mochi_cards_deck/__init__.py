@@ -1,8 +1,9 @@
+from uuid import uuid4
 import zipfile
 from pathlib import Path
 import io
 
-from .model import TopLevelMap
+from .model import Template, TopLevelMap, FieldType, Review, Field
 import json
 
 
@@ -13,16 +14,55 @@ class MochiAttachment:
     filename: str
     content: bytes
 
+@dataclass
+class MochiField:
+    name: str
+    field_type:  FieldType 
+    id: str | None = None
+
+
+@dataclass
+class MochiCard:
+    content: str # Normal field.
+    name: str
+    fields: dict[str, str]
+    attachments: dict[str, MochiAttachment]
+    reviews: list[Review]| None = None
+    id: str | None = None
+
+    
 class MochiFile:
     DATA_JSON: str = "data.json"
     def __init__(self):
         self._root = TopLevelMap()
         self._files: dict[str, MochiAttachment] = {}
 
+    def _safe_id(self):
+        return str(uuid4()).replace("-", "")
+
     def add_attachment(self, filename: str, content: bytes):
         # Could do a content addressed storage here to get free dedup and avoiding duplicate files...
         attachment = MochiAttachment(filename=filename, content=content)
         self._files[filename] = attachment
+
+    def add_template(self, name: str, content: str, fields=list[MochiField], template_id: str | None = None):
+        if template_id is None:
+            template_id = self._safe_id()
+        if self._root.templates is None:
+            self._root.templates = []
+        fields_typed: list[Field] = []
+        for f in fields:
+            field_id = f.id
+            if field_id is None:
+                field_id = self._safe_id()
+                
+            fields_typed.append(Field(id=field_id, name=f.name, type=f.field_type))
+        self._root.templates.append(Template(
+            name=name,
+            content=content,
+            fields = fields_typed,
+            id = template_id,
+        ))
 
     def to_bytes(self) -> bytes: 
         buffer = io.BytesIO()
@@ -32,7 +72,7 @@ class MochiFile:
         
         with zipfile.ZipFile(buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
             zf.writestr("data.json", json_str)
-            for k, v in self._files.items():
+            for v in self._files.values():
                 zf.writestr(v.filename, v.content)
         return buffer.getvalue()
 
@@ -41,8 +81,6 @@ class MochiFile:
         content = self.to_bytes()
         with path.open("wb") as f:
             f.write(content)
-         
-        
 
     @staticmethod
     def load_file(path: Path) -> "MochiFile":
