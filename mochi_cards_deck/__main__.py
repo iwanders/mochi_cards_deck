@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 
 import argparse
 import logging
@@ -54,13 +53,13 @@ if __name__ == "__main__":
     subparsers = parser.add_subparsers(dest="command", help="sub-command help")
     
     
-    parser_run_load_test = subparsers.add_parser("load", help="Test loading a deck.") 
-    parser_run_load_test.add_argument("file", type=Path, help="Path to the file to load.", )
+    parser_run_load_test = subparsers.add_parser("test_load", help="Test loading a deck.") 
+    _ = parser_run_load_test.add_argument("file", type=Path, help="Path to the file to load.", )
     parser_run_load_test.set_defaults(func=run_load_test)
      
     
-    parser_run_create_deck = subparsers.add_parser("create", help="Test creating a deck")
-    parser_run_create_deck.add_argument("output", type=Path, help="Path to the output path.")
+    parser_run_create_deck = subparsers.add_parser("test_create", help="Test creating a deck")
+    _ = parser_run_create_deck.add_argument("output", type=Path, help="Path to the output path.")
     parser_run_create_deck.set_defaults(func=run_create_deck)
      
     args = parser.parse_args()

@@ -1,9 +1,10 @@
 
+import datetime
 from enum import Enum
 from typing import Annotated, Any, TypeVar
 
-from pydantic import BaseModel, PlainValidator, ConfigDict, PlainSerializer, Field as PydanticField 
-import datetime
+from pydantic import BaseModel, ConfigDict, PlainSerializer, PlainValidator
+from pydantic import Field as PydanticField
 
 """
 Roughly speaking, it hsould look like this:
